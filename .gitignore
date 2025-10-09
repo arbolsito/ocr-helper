@@ -2,3 +2,5 @@
 data_digits
 .data_digits
 .venv
+.vs
+*__pycache__/

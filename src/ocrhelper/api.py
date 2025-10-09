@@ -12,6 +12,9 @@ app = FastAPI(title="Mini OCR (mehrere benannte Regex, lokal)")
 def auth_or_401(authorization: str | None):
     if authorization != f"Bearer {API_TOKEN}":
         raise HTTPException(status_code=401, detail="Unauthorized")
+    
+if not reg.list():  # leer
+    reg.upsert(name="Beleg/Pic-Muster", pattern=r"\d{17,21}", enabled=True)
 
 @app.get("/healthz")
 def healthz(): return {"ok": True}

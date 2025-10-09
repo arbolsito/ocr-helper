@@ -1,3 +1,9 @@
 {
-  "patterns": []
+  "patterns": [
+    {
+      "name": "Beleg/Pic-Muster",
+      "pattern": "\\d{17,21}",
+      "enabled": true
+    }
+  ]
 }
