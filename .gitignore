@@ -1,7 +1,4 @@
-*/data_digits/*
 data_digits/*
-.data_digits
-!data_digits/*.zip
 !data_digits/*.7z
 
 .venv
