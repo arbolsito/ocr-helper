@@ -221,6 +221,8 @@ def train_chars(ask_path, data_dir, models_dir, epochs, batch, val_split, seed, 
 
     for ep in range(1, epochs + 1):
         Xsh, ysh = sk_shuffle(Xtr, ytr, random_state=seed + ep)
+        assert Xsh is not None
+        assert ysh is not None
         for i in tqdm(range(0, len(Xsh), batch), desc=f"Chars Epoch {ep}/{epochs}", unit="batch"):
             xb, yb = Xsh[i:i+batch], ysh[i:i+batch]
             clf.partial_fit(xb, yb)
