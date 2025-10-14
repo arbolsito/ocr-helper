@@ -12,11 +12,12 @@ fastapi = "^0.118.0"
 uvicorn = {extras = ["standard"], version = "^0.32.0"}
 numpy = "^2.1.2"
 opencv-python-headless = "^4.10.0.84"
-scikit-image = "^0.24.0"
+scikit-image = ">=0.24.0"
 scikit-learn = "^1.5.2"
 pillow = "^10.4.0"
 joblib = "^1.4.2"
 python-multipart = "^0.0.20"
+tqdm = "^4.67.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
