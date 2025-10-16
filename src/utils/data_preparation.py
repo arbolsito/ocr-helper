@@ -1,17 +1,26 @@
 from __future__ import annotations
 import re
 from pathlib import Path
-from typing import Iterable, Iterator, Tuple, List, Optional
+from typing import Dict, Iterable, Iterator, Tuple, List, Optional
 
 import numpy as np
 from PIL import Image, ImageOps
 from skimage.feature import hog
+from sklearn.base import accuracy_score
+from sklearn.metrics import classification_report, f1_score
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import SGDClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.utils import shuffle as sk_shuffle
 from joblib import dump
 
+from typing import TypedDict
+
+class EvalMetrics(TypedDict):
+    accuracy: float
+    f1_macro: float
+    report: str
 
 # ---------- 1) Datenerfassung und Label-Parsing ----------
 registry = {}
@@ -28,6 +37,7 @@ def parse_label_from_filename(p: Path,pattern:re.Pattern=LABEL_PATTERN) -> str:
     return str(info[CHAR])
 
 
+# ---------- Image Preprocessing ----------
 def find_images(root: Path, exts=(".png", ".jpg", ".jpeg")) -> List[Path]:
     return [p for p in root.rglob("*") if p.suffix.lower() in exts]
 
@@ -91,6 +101,15 @@ def preprocess_image(path: Path, size=(32, 32), do_binarize=False, do_deskew=Tru
     arr = np.asarray(img, dtype=np.float32) / 255.0
     return arr
 
+# -------------- Alternatives Image-Preprocessing kürzer -------
+
+# def preprocess_image(path: Path, size=(32, 32)) -> np.ndarray:
+#     img = Image.open(path).convert("L")
+#     img = ImageOps.invert(img) if np.mean(img) > 127 else img
+#     img = ImageOps.pad(img, size, method=Image.BILINEAR, color=255, centering=(0.5, 0.5))
+#     arr = np.asarray(img, dtype=np.float32) / 255.0
+#     return arr
+
 # ---------- 3) HOG-Features ----------
 
 def hog_features(img_arr: np.ndarray) -> np.ndarray:
@@ -106,7 +125,7 @@ def hog_features(img_arr: np.ndarray) -> np.ndarray:
     )
     return feats.astype(np.float32, copy=False)
 
-# ---------- 4) Dataset Builder ----------
+# ---------- 4) Dataset Utilities ----------
 
 def build_dataset(image_paths: List[Path], *, shuffle=True, random_state=0) -> Tuple[np.ndarray, np.ndarray, List[str]]:
     labels : list[str]= [parse_label_from_filename(p) for p in image_paths]
@@ -132,6 +151,29 @@ def iter_minibatches(paths: List[Path], batch_size: int, random_state=0) -> Iter
     rng.shuffle(idx)
     for i in range(0, len(idx), batch_size):
         yield [paths[j] for j in idx[i:i+batch_size]]
+        
+
+# ---------- Training ----------
+### Hardcoded 'modified_huber' optional VALID_LOSSES: set[str] = {   
+# "hinge", "log_loss", "modified_huber", "squared_hinge", "perceptron"}
+
+
+def create_pipeline( random_state=0) -> Pipeline:
+    clf = SGDClassifier(
+        loss='modified_huber',
+        alpha=1e-4,
+        learning_rate="optimal",
+        penalty="l2",
+        max_iter=1,
+        tol=None,
+        shuffle=False,
+        random_state=random_state,
+    )
+    return Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", clf),
+    ])
+
 
 def partial_fit_chars(
     image_paths: List[Path],
@@ -184,6 +226,28 @@ def partial_fit_chars(
 
     return pipe
 
+# ---------- Evaluation ----------
+
+def evaluate(pipe: Pipeline, le: LabelEncoder, image_paths: List[Path]) ->EvalMetrics
+    X = [hog_features(preprocess_image(p)) for p in image_paths]
+    y = [parse_label_from_filename(p) for p in image_paths]
+    X = np.vstack(X)
+    y = le.transform(y)
+    Xs = pipe.named_steps["scaler"].transform(X)
+    y_pred = pipe.named_steps["clf"].predict(Xs)
+  
+    return {
+        "accuracy": accuracy_score(y, y_pred),
+        "f1_macro": float(f1_score(y, y_pred, average="macro")),
+        "report": str(classification_report(y, y_pred, digits=3, zero_division=0)),
+    }
+
+# ---------- Utility ----------
+
+def train_test_split_paths(paths: List[Path], test_size=0.2, random_state=42):
+    labels = [parse_label_from_filename(p) for p in paths]
+    tr, te = train_test_split(paths, test_size=test_size, stratify=labels, random_state=random_state)
+    return tr, te
 # ---------- 6) Bequemer CLI-Helper ----------
 
 def prepare_npz_from_directory(data_dir: Path, out_npz: Path) -> Path:

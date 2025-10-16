@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os, re, json, math, pathlib, time
 from dataclasses import dataclass
-from typing import Iterable, Tuple, List, Optional
+from typing import Iterable, SupportsIndex, Tuple, List, Optional
 
 import click
 import numpy as np
@@ -63,7 +63,7 @@ def iter_digit_paths(data_dir: pathlib.Path) -> Iterable[Tuple[int, pathlib.Path
             for p in cls_dir.glob("*.png"):
                 yield d, p
 
-def load_digits_matrix(data_dir: pathlib.Path, cfg: HogCfg, limit: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+def load_digits_matrix(data_dir: pathlib.Path, cfg: HogCfg, limit: Optional[int] = None) -> Tuple[np.ndarray[np.float32], np.ndarray[np.int64]]:
     pairs = list(iter_digit_paths(data_dir))
     if not pairs:
         raise RuntimeError(f"Keine Ziffernbilder unter {data_dir} gefunden (erwartet Ordner 0..9).")
@@ -85,7 +85,7 @@ def preprocess_gray(image: np.ndarray) -> np.ndarray:
     # erwartet Graustufen [0..1] oder [0..255]
     g = util.img_as_float(image) if image.dtype != np.float32 else image
     # adaptiver Schwellenwert
-    thr = filters.threshold_local(g, block_size=31, offset=0.02)
+    thr = filters.threshold_local(g, block_size=31, offset=0.02) # type: ignore Falsche Version im Type-Hint
     bw = (g < thr).astype(np.uint8)  # Ziffern dunkel -> True
     bw = morphology.remove_small_objects(measure.label(bw), min_size=16)
     bw = (bw > 0).astype(np.uint8)
@@ -112,7 +112,7 @@ def segment_glyphs(gray_u8: np.ndarray) -> List[np.ndarray]:
         crop = gray_u8[y:y+h, x:x+w]
         # Padding und Normierung
         pad = 2
-        crop = util.pad(crop, ((pad, pad), (pad, pad)), mode="constant", constant_values=255)
+        crop = np.pad(crop, ((pad, pad), (pad, pad)), mode="constant", constant_values=255)
         crop = resize(crop, (32, 32), anti_aliasing=True)
         patches.append(util.img_as_float32(crop))
     return patches
@@ -190,8 +190,7 @@ def cli():
 @click.option("--continue-from", "continue_from", type=click.Path(exists=True), default=None,
               help="Bestehendes SGD-Modell (.joblib) für Fine-Tuning.")
 @click.option("--limit", type=int, default=None, help="Nur erste N Bilder laden (Debug).")
-@click.option("--regex", default=r"\d{17,21}", show_default=True,
-              help="Nur als Metadatum gespeichert.")
+#@click.option("--regex", default=r"\d{17,21}", show_default=True,help="Nur als Metadatum gespeichert.")
 def train_chars(ask_path, data_dir, models_dir, epochs, batch, val_split, seed, continue_from, limit, regex):
     # Pfad wählen
     if data_dir is None:
@@ -205,7 +204,7 @@ def train_chars(ask_path, data_dir, models_dir, epochs, batch, val_split, seed, 
     cfg = HogCfg()
     X, y = load_digits_matrix(data_dir, cfg, limit=limit)
     Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=val_split, stratify=y, random_state=seed)
-
+    # SGD statt SVM um weitertrainieren zu ermöglihcen/erleichtern
     if continue_from:
         bundle = joblib.load(continue_from)
         clf: SGDClassifier = bundle["clf"]
@@ -220,6 +219,8 @@ def train_chars(ask_path, data_dir, models_dir, epochs, batch, val_split, seed, 
         clf.partial_fit(Xtr[:init], ytr[:init], classes=classes)
 
     for ep in range(1, epochs + 1):
+        assert isinstance(Xtr, SupportsIndex)
+        assert isinstance(ytr, SupportsIndex)
         Xsh, ysh = sk_shuffle(Xtr, ytr, random_state=seed + ep)
         assert Xsh is not None
         assert ysh is not None
