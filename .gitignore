@@ -1,5 +1,5 @@
-data_digits/*
-!data_digits/*.7z
+train_data/*
+!train_data/*.7z
 
 .venv
 .vs

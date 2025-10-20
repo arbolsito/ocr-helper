@@ -1,0 +1,6 @@
+{
+    "python.defaultInterpreterPath": "p:\\Workspace_GitLab\\daewy_VSCode\\daewy-ocr-helper\\.venv\\Scripts\\python.exe",
+    "jupyter.jupyterServerType": "local",
+    "jupyter.logging.level": "debug",
+    "jupyter.kernelStartupTimeout": 60
+}
